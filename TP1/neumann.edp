@@ -1,0 +1,20 @@
+border B1(t=0,1){x=t;y=0;label=1;};
+border B2(t=0,1){x=1;y=t;label=2;};
+border B3(t=1,0){x=t;y=1;label=3;};
+border B4(t=1,0){x=0;y=t;label=4;};
+
+mesh Th = buildmesh(B1(5) + B2(5) + B3(5) + B4(5) + C(-20));
+
+//plot(Th, wait=1);
+
+fespace V1(Th, P1);
+fespace V0(Th, P0);
+
+V0 f = 1;
+V1 u, v;
+
+problem Neumann(u, v) = int2d(Th)(dx(u)*dx(v) + dy(u)*dy(v)) - int2d(Th)(f*v) + on(1,2,3,4, dx(u)=0);
+
+Neumann;
+
+plot(u, fill=1, value=1, dim=3);
