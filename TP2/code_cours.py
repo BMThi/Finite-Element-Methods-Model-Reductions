@@ -11,31 +11,31 @@ x_M=3.
 y_m=1.
 y_M=3.
 
-np.random.seed(28)
-
 # Uniform meshgrid 
 x=np.linspace(x_m,x_M,Nx+2)
 y=np.linspace(y_m,y_M,Ny+2)
-#x=np.random.uniform(x_m,x_M,Nx+2)
-#y=np.random.uniform(y_m,y_M,Ny+2)
 
-X,Y=np.meshgrid(x,y)
+def mesh(x, y):    
+    X,Y=np.meshgrid(x,y)
+    
+    X=X.flatten()
+    Y=Y.flatten()
+    
+    triang = tri.Triangulation(X, Y)
+    
+    NTri=np.shape(triang.triangles)[0]
+    NSom=np.shape(triang.x)[0]
+    
+    #Table with nodes coordinates
+    TabSom=np.zeros([NSom,2])
+    TabSom[:,0]=triang.x
+    TabSom[:,1]=triang.y
+    
+    # Table with triangle nodes
+    TabTri=triang.triangles
+    return X, Y, TabSom, TabTri, NSom, NTri, triang
 
-X=X.flatten()
-Y=Y.flatten()
-
-triang = tri.Triangulation(X, Y)
-
-NTri=np.shape(triang.triangles)[0]
-NSom=np.shape(triang.x)[0]
-
-#Table with nodes coordinates
-TabSom=np.zeros([NSom,2])
-TabSom[:,0]=triang.x
-TabSom[:,1]=triang.y
-
-# Table with triangle nodes
-TabTri=triang.triangles
+X, Y, TabSom, TabTri, NSom, NTri, triang = mesh(x, y)
 
 # Représentation du maillage
 plt.figure(1)
@@ -43,19 +43,6 @@ plt.gca().set_aspect('equal')
 plt.triplot(X,Y,triang.triangles, 'b-', lw=0.5)
 plt.title('maillage')
 plt.show()
-
-
-# Initialize Global Element Matrices : Mass Matrix and Stiffness matrix
-M = np.zeros((NSom, NSom)) #Mass matrix
-R = np.zeros((NSom, NSom)) #Stiffness matrix
-
-
-#Initialize Right hand side
-F = np.zeros(NSom)
-
-# Define Local Element Matrices (placeholders for now)
-Me_local = np.zeros((3, 3))
-Re_local = np.zeros((3, 3))
 
 # Function to compute area of a triangle given by vertices
 def tri_area(x1, y1, x2, y2, x3, y3):
@@ -80,34 +67,43 @@ def local_matrices_p1(x1, y1, x2, y2, x3, y3):
 
     return Me_local, Re_local
 
-##### Algorithm to implement the mass matrix and the stifness matrix
-for l in range(NTri):
-    nodes = TabTri[l]
-    # Get the vertices of the triangle
-    x1, y1 = TabSom[nodes[0], 0], TabSom[nodes[0], 1]
-    x2, y2 = TabSom[nodes[1], 0], TabSom[nodes[1], 1]
-    x3, y3 = TabSom[nodes[2], 0], TabSom[nodes[2], 1]
+def calculMR(NSom, NTri, TabSom, TabTri):
+    # Initialize Global Element Matrices : Mass Matrix and Stiffness matrix
+    M = np.zeros((NSom, NSom)) #Mass matrix
+    R = np.zeros((NSom, NSom)) #Stiffness matrix
     
-    area = tri_area(x1, y1, x2, y2, x3, y3)
+    # Define Local Element Matrices (placeholders for now)
+    Me_local = np.zeros((3, 3))
+    Re_local = np.zeros((3, 3))
+    ##### Algorithm to implement the mass matrix and the stifness matrix
+    for l in range(NTri):
+        nodes = TabTri[l]
+        # Get the vertices of the triangle
+        x1, y1 = TabSom[nodes[0], 0], TabSom[nodes[0], 1]
+        x2, y2 = TabSom[nodes[1], 0], TabSom[nodes[1], 1]
+        x3, y3 = TabSom[nodes[2], 0], TabSom[nodes[2], 1]
+        
+        #area = tri_area(x1, y1, x2, y2, x3, y3)
+        
+        # Calculate the local matrices for this triangle
+        Me_local, Re_local = local_matrices_p1(x1, y1, x2, y2, x3, y3)
     
-    # Calculate the local matrices for this triangle
-    Me_local, Re_local = local_matrices_p1(x1, y1, x2, y2, x3, y3)
-
-    # Assemble global matrices
-    for i in range(3):  # Loop over local nodes
-        I = nodes[i]  # Global index
-        for j in range(3):
-            J = nodes[j]  # Global index
-            M[I, J] += Me_local[i, j]  # Assemble global mass matrix
-            R[I, J] += Re_local[i, j]  # Assemble global stiffness matrix
-        #F[I] += area / 3  # Assuming constant f=1, equally distributed to each node
-
-
-##### Algorithm to implement the right hand side
+        # Assemble global matrices
+        for i in range(3):  # Loop over local nodes
+            I = nodes[i]  # Global index
+            for j in range(3):
+                J = nodes[j]  # Global index
+                M[I, J] += Me_local[i, j]  # Assemble global mass matrix
+                R[I, J] += Re_local[i, j]  # Assemble global stiffness matrix
+            #F[I] += area / 3  # Assuming constant f=1, equally distributed to each node
+    return M, R
+    
+M, R = calculMR(NSom, NTri, TabSom, TabTri)
 # Calculate the right-hand side F for f=1
 F = np.sum(M, axis=1)
 # Calculate u_h
 u = npl.solve(R+M,F)
+
 
 
 plt.figure(2)
@@ -125,20 +121,6 @@ def u_true(x, y):
 def f_true(x, y):
     return (2 * np.pi**2 + 1) * np.cos(np.pi * x) * np.cos(np.pi * y)
 
-# Compute the true right-hand side f on each node
-F_true = f_true(X, Y)
-
-# Calculate the L2 norm error
-u_exact = u_true(X, Y)
-
-# Calculate the interpolation
-I_h = u_true(TabSom[:, 0], TabSom[:, 1])
-
-# Calculate u_h
-u_h = npl.solve(R+M,F_true)
-
-error_L2 = np.sqrt((I_h - u_h).T @ M @ (I_h - u_h))
-error_L2_log = np.log(error_L2)
 
 def grad_u_true(x, y):
     du_dx = -np.pi * np.sin(np.pi * x) * np.cos(np.pi * y)
@@ -172,6 +154,10 @@ grad_u_exact = grad_u_true(X, Y)
 #error_H1 = npl.norm(grad_uh - grad_u_exact, 2) / npl.norm(grad_u_exact, 2)
 #error_H1_log = np.log(error_H1)
 
+n = 10
+h = np.zeros(10)
+error_L2 = np.zeros(10)
+
 def calculate_mesh_size(TabSom, TabTri):
     h_max = 0
     for triangle in TabTri:
@@ -185,8 +171,34 @@ def calculate_mesh_size(TabSom, TabTri):
                 
     return h_max
 
-# Now calculate the mesh size h for your mesh
-h = calculate_mesh_size(TabSom, TabTri)
+for i in range(n):
+    #np.random.seed(i+28)
+    #x=np.random.uniform(x_m,x_M,Nx+2)
+    #y=np.random.uniform(y_m,y_M,Ny+2)
+    Nx, Ny = 10*(i+1),10*(i+1)
+    x=np.linspace(x_m,x_M,Nx+2)
+    y=np.linspace(y_m,y_M,Ny+2)
+    X, Y, TabSom, TabTri, NSom, NTri, triang = mesh(x, y)
+    M, R = calculMR(NSom, NTri, TabSom, TabTri)
+    
+    # Interpolate the RHS f at each node
+    f_values = f_true(TabSom[:, 0], TabSom[:, 1])
+    # Compute the RHS F using the mass matrix M
+    F = M @ f_values
+
+    # Calculate the interpolation
+    I_h = u_true(TabSom[:, 0], TabSom[:, 1])
+    
+    # Calculate u_h
+    u_h = npl.solve(R+M,F)
+
+    # Calculate the L2 norm error
+    error_L2[i] = np.sqrt((I_h - u_h).T @ M @ (I_h - u_h))
+    
+    # Now calculate the mesh size h for our mesh
+    h[i] = calculate_mesh_size(TabSom, TabTri)
+
+#error_L2_log = np.log(error_L2)
 plt.figure()
 plt.loglog(h, error_L2, 'o-', label='L2 norm error')
 #plt.loglog(h, error_H1, 's-', label='H1 semi-norm error')
