@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.linalg as npl
 import matplotlib.tri as tri
+from scipy.integrate import dblquad
 
 Nx=20
 Ny=20
@@ -63,18 +64,18 @@ def local_matrices_p1(x1, y1, x2, y2, x3, y3):
     c = np.array([x3 - x2, x1 - x3, x2 - x1])
 
     # Local Stiffness Matrix for P1 element
-    Re_local = (1 / (4 * area)) * np.outer(b, b) + np.outer(c, c)
+    Ae_local = (1 / (4 * area)) * np.outer(b, b) + np.outer(c, c)
 
-    return Me_local, Re_local
+    return Me_local, Ae_local
 
-def calculMR(NSom, NTri, TabSom, TabTri):
+def calculMA(NSom, NTri, TabSom, TabTri):
     # Initialize Global Element Matrices : Mass Matrix and Stiffness matrix
     M = np.zeros((NSom, NSom)) #Mass matrix
-    R = np.zeros((NSom, NSom)) #Stiffness matrix
+    A = np.zeros((NSom, NSom)) #Stiffness matrix
     
     # Define Local Element Matrices (placeholders for now)
     Me_local = np.zeros((3, 3))
-    Re_local = np.zeros((3, 3))
+    Ae_local = np.zeros((3, 3))
     ##### Algorithm to implement the mass matrix and the stifness matrix
     for l in range(NTri):
         nodes = TabTri[l]
@@ -86,7 +87,7 @@ def calculMR(NSom, NTri, TabSom, TabTri):
         #area = tri_area(x1, y1, x2, y2, x3, y3)
         
         # Calculate the local matrices for this triangle
-        Me_local, Re_local = local_matrices_p1(x1, y1, x2, y2, x3, y3)
+        Me_local, Ae_local = local_matrices_p1(x1, y1, x2, y2, x3, y3)
     
         # Assemble global matrices
         for i in range(3):  # Loop over local nodes
@@ -94,15 +95,15 @@ def calculMR(NSom, NTri, TabSom, TabTri):
             for j in range(3):
                 J = nodes[j]  # Global index
                 M[I, J] += Me_local[i, j]  # Assemble global mass matrix
-                R[I, J] += Re_local[i, j]  # Assemble global stiffness matrix
+                A[I, J] += Ae_local[i, j]  # Assemble global stiffness matrix
             #F[I] += area / 3  # Assuming constant f=1, equally distributed to each node
-    return M, R
+    return M, A
     
-M, R = calculMR(NSom, NTri, TabSom, TabTri)
+M, A = calculMA(NSom, NTri, TabSom, TabTri)
 # Calculate the right-hand side F for f=1
 F = np.sum(M, axis=1)
 # Calculate u_h
-u = npl.solve(R+M,F)
+u = npl.solve(A+M,F)
 
 
 
@@ -143,20 +144,15 @@ def grad_uh(triangles, TabSom, u_h):
         # Create the vector of u_h values at the vertices
         b = np.array([u_h[nodes[0]], u_h[nodes[1]], u_h[nodes[2]]])
         # Solve for the coefficients of the local linear function
-        coeffs = np.linalg.solve(A, b)
+        coeffs = npl.solve(A, b)
         # The coefficients related to x and y are the components of the gradient
         grad_uh[i] = coeffs[1:]  # Ignore the constant term
     return grad_uh
 
-# Calculate the H1 semi-norm error using the stiffness matrix A
-grad_uh = grad_uh(TabTri, TabSom, u)
-grad_u_exact = grad_u_true(X, Y)
-#error_H1 = npl.norm(grad_uh - grad_u_exact, 2) / npl.norm(grad_u_exact, 2)
-#error_H1_log = np.log(error_H1)
-
 n = 10
 h = np.zeros(10)
 error_L2 = np.zeros(10)
+error_H1 = np.zeros(10)
 
 def calculate_mesh_size(TabSom, TabTri):
     h_max = 0
@@ -166,7 +162,7 @@ def calculate_mesh_size(TabSom, TabTri):
         # Calculate the distance between each pair of vertices
         for i in range(3):
             for j in range(i+1, 3):
-                h = np.linalg.norm(vertices[i] - vertices[j])
+                h = npl.norm(vertices[i] - vertices[j])
                 h_max = max(h_max, h)
                 
     return h_max
@@ -179,21 +175,26 @@ for i in range(n):
     x=np.linspace(x_m,x_M,Nx+2)
     y=np.linspace(y_m,y_M,Ny+2)
     X, Y, TabSom, TabTri, NSom, NTri, triang = mesh(x, y)
-    M, R = calculMR(NSom, NTri, TabSom, TabTri)
+    M, A = calculMA(NSom, NTri, TabSom, TabTri)
     
-    # Interpolate the RHS f at each node
+    # Interpolate f at each node
     f_values = f_true(TabSom[:, 0], TabSom[:, 1])
     # Compute the RHS F using the mass matrix M
     F = M @ f_values
-
+    # Calculate u_h
+    u_h = npl.solve(A+M,F)
+    
     # Calculate the interpolation
     I_h = u_true(TabSom[:, 0], TabSom[:, 1])
     
-    # Calculate u_h
-    u_h = npl.solve(R+M,F)
-
     # Calculate the L2 norm error
     error_L2[i] = np.sqrt((I_h - u_h).T @ M @ (I_h - u_h))
+    #intergrate_u, error = dblquad(u_true, x_m, x_M, y_m, y_M)
+    
+    # Calculate the H1 semi-norm error using the stiffness matrix A
+    #grad_uh = grad_uh(TabTri, TabSom, u)
+    #grad_u_exact = grad_u_true(X, Y)
+    error_H1[i] = np.sqrt((I_h - u_h).T @ A @ (I_h - u_h))
     
     # Now calculate the mesh size h for our mesh
     h[i] = calculate_mesh_size(TabSom, TabTri)
@@ -201,7 +202,7 @@ for i in range(n):
 #error_L2_log = np.log(error_L2)
 plt.figure()
 plt.loglog(h, error_L2, 'o-', label='L2 norm error')
-#plt.loglog(h, error_H1, 's-', label='H1 semi-norm error')
+plt.loglog(h, error_H1, 's-', label='H1 semi-norm error')
 plt.xlabel('log(1/h)')
 plt.ylabel('log(Error)')
 plt.legend()
