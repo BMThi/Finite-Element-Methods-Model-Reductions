@@ -1,0 +1,74 @@
+
+// Laplacien dG methods SIP
+
+border a1(t=0,1.0){x=t; y=0; label=1;};
+border a2(t=0,1.0){x=1; y=t; label=2;};
+border a3(t=0,1.0){x=1-t; y=1.0; label=3;};
+border a4(t=0,1.0){x=0.0; y=1-t; label=4;};
+
+/*load "Element_P4dc"*/
+int nref = 5;
+real[int] L2error(nref);
+real[int] H1error(nref);
+
+for (int n=0; n<nref; n++) {
+
+	int Ns = 2^(n+1);
+	//int Nb = 2^(n+2);
+	mesh Th = buildmesh (a1(Ns) + a2(Ns) + a3(Ns) +a4(Ns));
+
+
+	fespace Uh(Th,P1dc);
+	Uh u, v;
+	macro dn(u) (N.x*dx(u)+N.y*dy(u))
+
+	
+
+	// Exact solution and data
+	fespace Fh(Th,P2);
+	Fh uex = sin(pi*x)*sin(pi*y);
+	Fh f = 2*pi*pi*sin(pi*x)*sin(pi*y);
+	Fh g = sin(pi*x)*sin(pi*y);
+	
+	fespace Xh (Th,P0);
+	Xh h = hTriangle;
+	real hmax = h[].max;
+	real pena = 10.0/hmax;	
+
+	//Definition des formes
+	varf a(u,v)=int2d(Th)(dx(u)*dx(v)+dy(u)*dy(v)) - intalledges(Th)( (jump(v)*mean(dn(u)) + jump(u)*mean(dn(v)))/nTonEdge ) + intalledges(Th)( pena*jump(u)*jump(v)/nTonEdge );
+	varf L(u,v)=int2d(Th)(f*v) + int1d(Th)(g*dn(v)) + int1d(Th)(pena*g*v);
+	
+	/*//  loop on all  edge of all triangle 
+       // the edge are see nTonEdge times so we / nTonEdge
+       // remark: nTonEdge =1 on border edge and =2 on internal 
+       // we are in a triange th normal is the exterior normal
+       // def: jump = external - internal value; on border exter value =0
+       //      mean = (external + internal value)/2, on border just internal value
+      */
+
+	//Definition des matrices
+	matrix A = a(Uh,Uh);
+	real[int] b=L(0,Uh);
+	u[]=A^-1*b;
+	
+
+	L2error[n] = sqrt(int2d(Th)((u-uex)^2));
+	H1error[n] = sqrt(int2d(Th)((u-uex)^2) +int2d(Th)((dx(u)-dx(uex))^2)+int2d(Th)((dy(u)-dy(uex))^2));
+
+
+	if (n==nref-1) {
+		//plot(Th,wait=1);
+		plot(u,wait=1,fill=1,value=true);
+	}
+
+}
+
+
+
+for(int n=0;n<nref;n++) 
+	cout << "L2error " << n << " = "<< L2error[n] << " and " << "H1error " << n << " = "<< H1error[n] << endl; 
+
+for(int n=1;n<nref;n++)
+	cout <<"L2 convergence rate = "<< log(L2error[n-1]/L2error[n])/log(2.) << " and " << "H1 convergence rate = "<< log(H1error[n-1]/H1error[n])/log(2.) << endl;
+
