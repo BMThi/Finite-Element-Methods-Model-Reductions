@@ -56,9 +56,9 @@ def u_bdry_1(x, on_boundary):
 
 # Physical and numerical parameters
 # Mesh and function spaces
-NP =  50; print('Number of mesh points NP = ', NP)
+NP =  35; print('Number of mesh points NP = ', NP)
 mesh = UnitSquareMesh(NP,NP)
-k = 2 ; print('Order of the Lagrange FE k = ', k)
+k = 1 ; print('Order of the Lagrange FE k = ', k)
 V = FunctionSpace(mesh, "CG", int(k))
 V_vec = VectorFunctionSpace(mesh, "CG", int(k))
 NN = V.dim(); print('Resulting number of nodes NN = ', NN)
@@ -367,6 +367,13 @@ p.set_cmap("rainbow"); plt.colorbar(p); plt.show()
 
 # RB solution
 p=plot(Urb_V, title="The Reduced Basis solution")#,mode='color',vmin=1.0, vmax=1.0000040)
+p.set_cmap("rainbow"); plt.colorbar(p); plt.show()
+
+Uh_POD_NN = np.load('Codes to be uploaded-20240321/POD-NN-practical/Uh_POD_NN.npy')
+u_nn = Function(V)
+u_nn.vector().set_local(Uh_POD_NN)
+# NN solution
+p=plot(u_nn, title="The Reduced Basis NN solution")#,mode='color',vmin=1.0, vmax=1.0000040)
 p.set_cmap("rainbow"); plt.colorbar(p); plt.show()
 
 # Relative difference solution
