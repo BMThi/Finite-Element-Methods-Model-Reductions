@@ -276,7 +276,7 @@ for m in range(M):
     # L2 norm of the difference
     # sum += diff.T @ diff
     # H1 seminorm of the difference
-    sum += diff.T @ A_NN1 @ diff
+    sum += (diff.T @ A_NN1) @ diff
     
 # Sum of discarded eigenvalues, which is the theoretical error bound
 discarded_eigenvalues = np.sum(eigenvalues[Nrb:])
@@ -318,11 +318,16 @@ A_NN = A_ass.array()
 # Stiffness matrix & RHS of the reduced system
 # The reduced stiffness matrix: Brb^T A_NN Brb
 # TO BE COMPLETED ...
+A_rb = Brb.T @ (A_NN @ Brb)
 # The reduced RHS
 # TO BE COMPLETED ...
+F_rb = Brb.T @ F
 
 # Solve the reduced system
 # TO BE COMPLETED ...
+tcpu1 = time.time()
+u_rb = np.linalg.solve(A_rb, F_rb)
+tcpu2 = time.time()
 print('RB solution CPU-time = ',tcpu1 - tcpu2)
 
 #
@@ -330,6 +335,7 @@ print('RB solution CPU-time = ',tcpu1 - tcpu2)
 #
 # The RB solution in the complete FE basis: Urb = B_rb^T . urb 
 # TO BE COMPLETED ...
+Urb = Brb @ u_rb
 
 # Transform the RB solution to a Fenics object
 Urb_V = Function(V)
@@ -429,5 +435,5 @@ print('#')
 print("The discarde eigenvalues",discarded_eigenvalues)
 print('#')
 print("sum=",sum)
-print('#')
+print('#'); s_eigen = np.sum(eigenvalues)
 print("The error estimation by POD method with method1 is",abs(sum- discarded_eigenvalues)/abs(s_eigen))
