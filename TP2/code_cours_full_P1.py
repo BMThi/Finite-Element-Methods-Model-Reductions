@@ -11,10 +11,12 @@ x_m=1.
 x_M=3.
 y_m=1.
 y_M=3.
-
+np.random.seed(28)
 # Uniform meshgrid 
 x=np.linspace(x_m,x_M,Nx+2)
 y=np.linspace(y_m,y_M,Ny+2)
+x=np.random.uniform(x_m,x_M,Nx+2)
+y=np.random.uniform(y_m,y_M,Ny+2)
 
 def mesh(x, y):    
     X,Y=np.meshgrid(x,y)
@@ -39,15 +41,15 @@ def mesh(x, y):
 X, Y, TabSom, TabTri, NSom, NTri, triang = mesh(x, y)
 
 # Représentation du maillage
-plt.figure(1)
+plt.figure(figsize=(10,8))
 plt.gca().set_aspect('equal')
 plt.triplot(X,Y,triang.triangles, 'b-', lw=0.5)
-plt.title('maillage')
+plt.title('Mesh')
 plt.show()
 
 # Function to compute area of a triangle given by vertices
 def tri_area(x1, y1, x2, y2, x3, y3):
-    return 0.5 * abs(x1*(y2-y3) + x2*(y3-y1) + x3*(y1-y2))
+    return 0.5 * abs((x1-x3)*(y2-y3) - (y1-y3)*(x2-x3))
 
 # Define Local Mass and Stiffness Matrices for P1 element (placeholders for simplicity)
 def local_matrices_p1(x1, y1, x2, y2, x3, y3):
@@ -70,15 +72,13 @@ def local_matrices_p1(x1, y1, x2, y2, x3, y3):
                                          [1, 1, 2]])
 
     # Calculate gradients of shape functions
-    b = np.array([y2 - y3, y3 - y1, y1 - y2])
-    c = np.array([x3 - x2, x1 - x3, x2 - x1])
+    b = np.array([[y2 - y3, y3 - y1, y1 - y2], 
+                  [x3 - x2, x1 - x3, x2 - x1]])
 
     # Local Stiffness Matrix for P1 element
-    Ae_local = (1 / (4 * area)) * np.outer(b, b) + np.outer(c, c)
+    Ae_local = (1 / (4 * area)) * (b.T @ b)
 
     return Me_local, Ae_local
-
-import numpy as np
 
 def local_matrices_p2(x1, y1, x2, y2, x3, y3):
     """
@@ -130,9 +130,9 @@ def calculMA(NSom, NTri, TabSom, TabTri):
     for l in range(NTri):
         nodes = TabTri[l]
         # Get the vertices of the triangle
-        x1, y1 = TabSom[nodes[0], 0], TabSom[nodes[0], 1]
-        x2, y2 = TabSom[nodes[1], 0], TabSom[nodes[1], 1]
-        x3, y3 = TabSom[nodes[2], 0], TabSom[nodes[2], 1]
+        x1, y1 = TabSom[nodes[0]]
+        x2, y2 = TabSom[nodes[1]]
+        x3, y3 = TabSom[nodes[2]]
         
         # Calculate the local matrices for this triangle
         Me_local, Ae_local = local_matrices_p1(x1, y1, x2, y2, x3, y3)
@@ -145,20 +145,19 @@ def calculMA(NSom, NTri, TabSom, TabTri):
                 M[I, J] += Me_local[i, j]  # Assemble global mass matrix
                 A[I, J] += Ae_local[i, j]  # Assemble global stiffness matrix
     return M, A
-    
+ 
 M, A = calculMA(NSom, NTri, TabSom, TabTri)
 # Calculate the right-hand side F for f=1
 F = np.sum(M, axis=1)
 # Calculate u_h
-u = npl.solve(A+M,F)
+U = npl.solve(A+M,F)
 
 
-
-plt.figure(2)
+plt.figure(figsize=(10, 8))
 plt.gca().set_aspect('equal')
-plt.tripcolor(triang.x,triang.y,triang.triangles, u, shading='flat')
-plt.colorbar()
-plt.title('solution approchee par EF P1')
+plt.tripcolor(triang.x, triang.y, triang.triangles, U, shading='flat')
+plt.colorbar(label='Solution $u_h$')
+plt.title('Approximate solution by $P_1$-FE')
 plt.show()
 
 
@@ -168,7 +167,6 @@ def u_true(x, y):
 
 def f_true(x, y):
     return (2 * np.pi**2 + 1) * np.cos(np.pi * x) * np.cos(np.pi * y)
-
 
 def grad_u_true(x, y):
     du_dx = -np.pi * np.sin(np.pi * x) * np.cos(np.pi * y)
@@ -245,13 +243,12 @@ for i in range(n):
     h[i] = calculate_mesh_size(TabSom, TabTri)
 
 #error_L2_log = np.log(error_L2)
-plt.figure()
-plt.loglog(h, error_L2/L2_norm, 'o-', label='L2 norm error')
-plt.loglog(h, error_H1/H1_seminorm, 's-', label='H1 semi-norm error')
+plt.figure(figsize=(10,8))
+plt.loglog(1/h, error_L2/L2_norm, 'o-', label='L2 norm error')
+plt.loglog(1/h, error_H1/H1_seminorm, 's-', label='H1 semi-norm error')
 plt.xlabel('log(1/h)')
 plt.ylabel('log(Error)')
 plt.legend()
 plt.title('Error analysis')
 plt.show()
-
 
