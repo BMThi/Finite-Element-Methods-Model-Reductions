@@ -80,47 +80,6 @@ def local_matrices_p1(x1, y1, x2, y2, x3, y3):
 
     return Me_local, Ae_local
 
-def local_matrices_p2(x1, y1, x2, y2, x3, y3):
-    """
-    Compute the local mass and stiffness matrices for a quadratic triangle element (P2).
-
-    Parameters:
-    x1, y1, x2, y2, x3, y3 : The coordinates of the vertices of the triangle.
-
-    Returns:
-    Me (array): Local mass matrix (6x6).
-    Ke (array): Local stiffness matrix (6x6).
-    """
-
-    # Midpoints
-    x12, y12 = (x1 + x2) / 2, (y1 + y2) / 2
-    x23, y23 = (x2 + x3) / 2, (y2 + y3) / 2
-    x31, y31 = (x3 + x1) / 2, (y3 + y1) / 2
-
-    # Nodes: vertices + midpoints
-    nodes = np.array([
-        [x1, y1], [x2, y2], [x3, y3],
-        [x12, y12], [x23, y23], [x31, y31]
-    ])
-
-    # Area of the triangle
-    area = tri_area(x1, y1, x2, y2, x3, y3)
-
-    # Initialize matrices
-    Me = np.zeros((6, 6))
-    Ke = np.zeros((6, 6))
-
-    # Numerical integration (Gaussian quadrature, etc.) needed here for accurate integration
-    # This is a placeholder:
-    for i in range(6):
-        for j in range(6):
-            Me[i, j] = area / (12 if i == j else 24)  # Simplified, typically needs actual integration
-            # Compute stiffness matrix entries (based on derivatives of basis functions)
-            # Placeholder for demonstration:
-            Ke[i, j] = area * (i + j + 1) / 36  # Simplified, replace with actual derivatives
-
-    return Me, Ke
-
 def calculMA(NSom, NTri, TabSom, TabTri):
     # Initialize Global Element Matrices : Mass Matrix and Stiffness matrix
     M = np.zeros((NSom, NSom)) #Mass matrix
@@ -246,7 +205,7 @@ for i in range(n):
 plt.figure(figsize=(10,8))
 plt.loglog(1/h, error_L2/L2_norm, 'o-', label='L2 norm error')
 plt.loglog(1/h, error_H1/H1_seminorm, 's-', label='H1 semi-norm error')
-plt.xlabel('log(1/h)')
+#plt.loglog(1/h, error_L2/H2_seminorm + h*error_H1/H2_seminorm, 'o-', label='Theorem error')
 plt.ylabel('log(Error)')
 plt.legend()
 plt.title('Error analysis')
